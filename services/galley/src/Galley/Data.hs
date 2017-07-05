@@ -28,6 +28,8 @@ module Galley.Data
     , deleteTeam
     , removeTeamConv
     , updateTeam
+    , getBilling
+    , setBilling
 
     -- * Conversations
     , Conversation (..)
@@ -79,6 +81,7 @@ import Data.Range
 import Data.List1 (List1, list1, singleton)
 import Data.Int
 import Data.Maybe (fromMaybe)
+import Data.Misc (Email)
 import Data.Text (Text)
 import Data.Time.Clock
 import Data.UUID.V4 (nextRandom)
@@ -166,6 +169,16 @@ teamBinding t = checkBinding . fmap runIdentity <$>
     checkBinding (Just (Just Binding)) = Just Binding
     checkBinding (Just _             ) = Just NonBinding
     checkBinding Nothing               = Nothing
+
+getBilling :: MonadClient m => TeamId -> m (Maybe BillingData)
+getBilling t = fmap (BillingData . runIdentity) <$>
+      retry x1 (query1 Cql.selectTeamBilling (params Quorum (Identity t)))
+
+setBilling :: MonadClient m => TeamId -> BillingData -> m ()
+setBilling tid b = do
+    let email = b^.bdEmail :: Email
+    retry x5 $ write Cql.insertTeamBilling (params Quorum (tid, email))
+    pure ()
 
 createTeam :: MonadClient m
            => Maybe TeamId

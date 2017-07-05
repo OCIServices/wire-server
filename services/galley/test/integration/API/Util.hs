@@ -123,6 +123,22 @@ createTeamConv g u tinfo us name = do
               ) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
+getBilling :: Galley -> TeamId -> UserId -> Http BillingData
+getBilling g tid uid = do
+    r <- get  ( g
+              . zUser uid
+              . zConn "conn"
+              . zType "access"
+              . paths ["teams", toByteString' tid, "billing"]
+              ) <!! const 200 === statusCode
+    pure (fromJust (decodeBody r))
+
+setBilling :: Galley -> TeamId -> UserId -> BillingData -> Http ResponseLBS
+setBilling g tid uid b = put $ g
+              . zUser uid . zConn "conn" . zType "access"
+              . paths ["teams", toByteString' tid, "billing"]
+              . json b
+
 postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Http ResponseLBS
 postConv g u us name a = do
     let conv = NewConv us name (Set.fromList a) Nothing
@@ -393,14 +409,10 @@ randomUsers b n = replicateM n (randomUser b)
 
 randomUser :: Brig -> Http UserId
 randomUser brig = do
-    e <- liftIO mkEmail
+    e <- liftIO randomEmail
     let p = object [ "name" .= fromEmail e, "email" .= fromEmail e, "password" .= defPassword ]
     r <- post (brig . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
-  where
-    mkEmail = do
-        uid <- nextRandom
-        return $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
 
 randomClient :: Brig -> UserId -> LastPrekey -> Http ClientId
 randomClient brig usr lk = do
@@ -503,3 +515,8 @@ genRandom = liftIO . Q.generate $ Q.arbitrary
 
 defPassword :: Text
 defPassword = "secret"
+
+randomEmail :: MonadIO m => m Email
+randomEmail = do
+    uid <- liftIO nextRandom
+    return $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
