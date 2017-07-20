@@ -1,27 +1,25 @@
-syntax = "proto2";
+syntax = "proto3";
 
 option java_package = "com.wire.galley";
 option java_outer_classname = "TeamEvents";
 
+//import "google/protobuf/timestamp.proto";
+
 message TeamEvent {
-  required EventType type = 1;
-  required string tid = 2;        // Unique ID number for this person.
-  required string utcTime = 3;
-  optional EventData data = 4;
+  EventType type = 1;
+  bytes tid = 2;
+//  google.protobuf.Timestamp utcTime = 3;
+  int64 utcTime = 3;
+  EventData data = 4;
 }
 
 message EventData {
-   optional int32 memberCount = 1;
-   repeated TeamOwner owner = 2;
-}
-
-message TeamOwner {
-    required string uid = 1;
+   int32 memberCount = 1;
+   repeated bytes owner = 2;
 }
 
 enum EventType {
     TEAM_CREATE = 0;
     TEAM_DELETE = 1;
-    TEAM_UPDATE_MEMBERS = 2;
-    TEAM_UPDATE_OWNERS = 3;
+    TEAM_UPDATE = 2;
 }
