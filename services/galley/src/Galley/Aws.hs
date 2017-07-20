@@ -17,7 +17,7 @@ module Galley.Aws
     , eventQueue
     , Amazon
     , execute
-    , send
+    , enqueue
 
       -- * Errors
     , Error (..)
@@ -45,6 +45,95 @@ import qualified System.Logger           as Logger
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Network.AWS             as AWS
 import qualified Network.AWS.Env         as AWS
+
+
+
+
+import Control.Retry (retrying, limitRetries)
+import Data.Id
+import Data.UUID.V4 (nextRandom)
+import Data.Time.Clock
+import Control.Concurrent.Lifted (threadDelay)
+import Control.Error hiding (err)
+--import Control.Exception.Enclosed (handleAny)
+import Control.Lens hiding ((.=))
+import Control.Monad
+import Control.Monad.Trans.Resource
+import Control.Monad.Base
+import Control.Monad.Catch
+import Control.Monad.Reader
+import Control.Monad.Trans.Control
+--import Control.Monad.Trans.Resource
+import Control.Retry (retrying, limitRetries)
+import Data.Misc
+import Galley.Types.Teams.Queues
+import Control.Monad           (forM_, unless, void, when)
+import Control.Monad.IO.Class
+import Data.Aeson              ((.:), encode)
+import Data.ByteString         (ByteString)
+import Data.Monoid
+import Data.Text               (Text)
+import System.IO
+import System.Logger.Class
+import Network.HTTP.Types
+import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (..))
+import qualified Network.TLS             as TLS
+import qualified Data.Aeson.Types        as JSON (parseEither)
+import qualified Data.Text               as Text
+import qualified Data.Text.Encoding      as Text
+import qualified Data.Text.IO            as Text
+import qualified Data.ByteString.Lazy    as BL
+import qualified Network.AWS.SQS         as SQS
+import qualified Data.UUID               as UUID
+import qualified System.Logger           as Logger
+import qualified Control.Monad.Trans.AWS as AWST
+import qualified Network.AWS             as AWS
+import qualified Network.AWS.Env         as AWS
+import qualified Network.AWS.Data        as AWS
+import Blaze.ByteString.Builder (toLazyByteString)
+import Control.Concurrent.Lifted (threadDelay)
+import Control.Error hiding (err)
+import Data.Id
+import Data.Time.Clock
+import Data.UUID.V4 (nextRandom)
+import Galley.Options
+import Control.Lens hiding ((.=))
+import Control.Monad (forM_, unless, void, when)
+import Control.Monad.Base
+import Control.Monad.Catch
+import Control.Monad.IO.Class
+import Control.Monad.Reader
+import Control.Monad.Trans.Control
+import Control.Monad.Trans.Resource
+import Control.Retry (retrying, limitRetries)
+import Data.Aeson ((.:), encode)
+import Data.ByteString (ByteString)
+import Data.Misc
+import Data.Monoid
+import Data.Typeable
+import Data.Text (Text)
+import Galley.Types.Teams.Queues
+import Network.HTTP.Client
+       (Manager, HttpException(..), HttpExceptionContent(..))
+import Network.HTTP.Types
+import System.IO
+import System.Logger.Class
+import qualified Network.TLS             as TLS
+import qualified Data.Aeson.Types        as JSON (parseEither)
+import qualified Data.Text               as Text
+import qualified Data.Text.Encoding      as Text
+import qualified Data.Text.IO            as Text
+import qualified Data.ByteString.Lazy    as BL
+import qualified Network.AWS.SQS         as SQS
+import qualified Data.UUID               as UUID
+import qualified System.Logger           as Logger
+import qualified Control.Monad.Trans.AWS as AWST
+import qualified Network.AWS             as AWS
+import qualified Network.AWS.Env         as AWS
+import qualified Network.AWS.Data        as AWS
+import qualified Data.Text               as Text
+import qualified Data.Text.Encoding      as Text
+import qualified Data.Text.IO            as Text
 
 newtype QueueUrl = QueueUrl Text deriving Show
 
@@ -146,12 +235,23 @@ mkEnv lgr opts mgr = do
 execute :: MonadIO m => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
-send :: QEvent -> Amazon ()
-send e = do
+enqueue :: QEvent -> Amazon ()
+enqueue e = do
     QueueUrl url <- view eventQueue
-    let ev = Text.decodeLatin1 $ BL.toStrict $ encode e
-    rsp <- AWS.send $ SQS.sendMessage url ev & SQS.smMessageGroupId .~ Just "team.events"
-    -- TODO handle errors
-    return ()
+    res <- retrying (limitRetries 1) (const isTimeout) $ const (sendCatch (req url))
+    either (throwM . GeneralError) (const (return ())) res
+  where
+    ev = Text.decodeLatin1 $ BL.toStrict $ encode e
+    req url = SQS.sendMessage url ev & SQS.smMessageGroupId .~ Just "team.events"
 
+--------------------------------------------------------------------------------
+-- Utilities
 
+sendCatch :: AWS.AWSRequest r => r -> Amazon (Either AWS.Error (AWS.Rs r))
+sendCatch = AWST.trying AWS._Error . AWS.send
+
+isTimeout :: MonadIO m => Either AWS.Error a -> m Bool
+isTimeout (Right _) = pure False
+isTimeout (Left  e) = case e of
+    AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
+    _                                                           -> pure False
