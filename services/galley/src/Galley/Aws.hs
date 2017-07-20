@@ -110,6 +110,7 @@ import Data.Aeson ((.:), encode)
 import Data.ByteString (ByteString)
 import Data.Misc
 import Data.Monoid
+import Data.ProtoLens.Encoding
 import Data.Typeable
 import Data.Text (Text)
 import Galley.Types.Teams.Queues
@@ -134,6 +135,8 @@ import qualified Network.AWS.Data        as AWS
 import qualified Data.Text               as Text
 import qualified Data.Text.Encoding      as Text
 import qualified Data.Text.IO            as Text
+import qualified Data.ByteString.Base64  as B64
+import qualified Proto.Galley.Types.TeamEvents as E
 
 newtype QueueUrl = QueueUrl Text deriving Show
 
@@ -235,14 +238,14 @@ mkEnv lgr opts mgr = do
 execute :: MonadIO m => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
-enqueue :: QEvent -> Amazon ()
+enqueue :: E.TeamEvent -> Amazon ()
 enqueue e = do
     QueueUrl url <- view eventQueue
     res <- retrying (limitRetries 1) (const isTimeout) $ const (sendCatch (req url))
     either (throwM . GeneralError) (const (return ())) res
   where
-    ev = Text.decodeLatin1 $ BL.toStrict $ encode e
-    req url = SQS.sendMessage url ev & SQS.smMessageGroupId .~ Just "team.events"
+    event = Text.decodeLatin1 $ B64.encode $ encodeMessage e
+    req url = SQS.sendMessage url event & SQS.smMessageGroupId .~ Just "team.events"
 
 --------------------------------------------------------------------------------
 -- Utilities

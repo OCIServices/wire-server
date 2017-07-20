@@ -1,0 +1,27 @@
+syntax = "proto2";
+
+option java_package = "com.wire.galley";
+option java_outer_classname = "TeamEvents";
+
+message TeamEvent {
+  required EventType type = 1;
+  required string tid = 2;        // Unique ID number for this person.
+  required string utcTime = 3;
+  optional EventData data = 4;
+}
+
+message EventData {
+   optional int32 memberCount = 1;
+   repeated TeamOwner owner = 2;
+}
+
+message TeamOwner {
+    required string uid = 1;
+}
+
+enum EventType {
+    TEAM_CREATE = 0;
+    TEAM_DELETE = 1;
+    TEAM_UPDATE_MEMBERS = 2;
+    TEAM_UPDATE_OWNERS = 3;
+}
