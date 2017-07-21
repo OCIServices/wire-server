@@ -43,12 +43,12 @@ library
         Galley.Data.Services
         Galley.Data.Types
         Galley.External
-        Galley.Intra.Billing
         Galley.Intra.Push
         Galley.Intra.User
         Galley.Queue
         Galley.Validation
         Galley.Types.Clients
+        Galley.Types.TeamEvents
         Proto.Galley.Types.TeamEvents
 
     default-language:   Haskell2010

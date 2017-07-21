@@ -19,13 +19,11 @@ module Galley.Aws
     , execute
     , enqueue
 
-      -- * Errors
+     -- * Errors
     , Error (..)
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
-import Galley.Options
-import Galley.Types.Teams.Queues
 import Control.Lens hiding ((.=))
 import Control.Monad.Base
 import Control.Monad.Catch
@@ -33,112 +31,27 @@ import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
-import Data.Typeable
-import Data.Text (Text)
-import Network.HTTP.Client
-       (Manager, HttpException(..), HttpExceptionContent(..))
-import System.Logger.Class
-
-import qualified Network.TLS             as TLS
-import qualified Network.AWS.SQS         as SQS
-import qualified System.Logger           as Logger
-import qualified Control.Monad.Trans.AWS as AWST
-import qualified Network.AWS             as AWS
-import qualified Network.AWS.Env         as AWS
-
-
-
-
 import Control.Retry (retrying, limitRetries)
-import Data.Id
-import Data.UUID.V4 (nextRandom)
-import Data.Time.Clock
-import Control.Concurrent.Lifted (threadDelay)
-import Control.Error hiding (err)
---import Control.Exception.Enclosed (handleAny)
-import Control.Lens hiding ((.=))
-import Control.Monad
-import Control.Monad.Trans.Resource
-import Control.Monad.Base
-import Control.Monad.Catch
-import Control.Monad.Reader
-import Control.Monad.Trans.Control
---import Control.Monad.Trans.Resource
-import Control.Retry (retrying, limitRetries)
-import Data.Misc
-import Galley.Types.Teams.Queues
-import Control.Monad           (forM_, unless, void, when)
-import Control.Monad.IO.Class
-import Data.Aeson              ((.:), encode)
-import Data.ByteString         (ByteString)
-import Data.Monoid
-import Data.Text               (Text)
-import System.IO
-import System.Logger.Class
-import Network.HTTP.Types
-import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (..))
-import qualified Network.TLS             as TLS
-import qualified Data.Aeson.Types        as JSON (parseEither)
-import qualified Data.Text               as Text
-import qualified Data.Text.Encoding      as Text
-import qualified Data.Text.IO            as Text
-import qualified Data.ByteString.Lazy    as BL
-import qualified Network.AWS.SQS         as SQS
-import qualified Data.UUID               as UUID
-import qualified System.Logger           as Logger
-import qualified Control.Monad.Trans.AWS as AWST
-import qualified Network.AWS             as AWS
-import qualified Network.AWS.Env         as AWS
-import qualified Network.AWS.Data        as AWS
-import Blaze.ByteString.Builder (toLazyByteString)
-import Control.Concurrent.Lifted (threadDelay)
-import Control.Error hiding (err)
-import Data.Id
-import Data.Time.Clock
-import Data.UUID.V4 (nextRandom)
-import Galley.Options
-import Control.Lens hiding ((.=))
-import Control.Monad (forM_, unless, void, when)
-import Control.Monad.Base
-import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Reader
-import Control.Monad.Trans.Control
-import Control.Monad.Trans.Resource
-import Control.Retry (retrying, limitRetries)
-import Data.Aeson ((.:), encode)
-import Data.ByteString (ByteString)
-import Data.Misc
-import Data.Monoid
 import Data.ProtoLens.Encoding
-import Data.Typeable
 import Data.Text (Text)
-import Galley.Types.Teams.Queues
+import Data.Text.Encoding (decodeLatin1)
+import Data.Typeable
+import Galley.Options
 import Network.HTTP.Client
        (Manager, HttpException(..), HttpExceptionContent(..))
-import Network.HTTP.Types
-import System.IO
 import System.Logger.Class
-import qualified Network.TLS             as TLS
-import qualified Data.Aeson.Types        as JSON (parseEither)
-import qualified Data.Text               as Text
-import qualified Data.Text.Encoding      as Text
-import qualified Data.Text.IO            as Text
-import qualified Data.ByteString.Lazy    as BL
-import qualified Network.AWS.SQS         as SQS
-import qualified Data.UUID               as UUID
-import qualified System.Logger           as Logger
-import qualified Control.Monad.Trans.AWS as AWST
-import qualified Network.AWS             as AWS
-import qualified Network.AWS.Env         as AWS
-import qualified Network.AWS.Data        as AWS
-import qualified Data.Text               as Text
-import qualified Data.Text.Encoding      as Text
-import qualified Data.Text.IO            as Text
-import qualified Data.ByteString.Base64  as B64
-import qualified Proto.Galley.Types.TeamEvents as E
 
-newtype QueueUrl = QueueUrl Text deriving Show
+import qualified Control.Monad.Trans.AWS as AWST
+import qualified Data.ByteString.Base64 as B64
+import qualified Network.AWS as AWS
+import qualified Network.AWS.Env as AWS
+import qualified Network.AWS.SQS as SQS
+import qualified Network.TLS as TLS
+import qualified Proto.Galley.Types.TeamEvents as E
+import qualified System.Logger as Logger
+
+newtype QueueUrl = QueueUrl Text
+    deriving (Show)
 
 data Error where
     GeneralError     :: (Show e, AWS.AsError e) => e -> Error
@@ -244,7 +157,7 @@ enqueue e = do
     res <- retrying (limitRetries 1) (const isTimeout) $ const (sendCatch (req url))
     either (throwM . GeneralError) (const (return ())) res
   where
-    event = Text.decodeLatin1 $ B64.encode $ encodeMessage e
+    event = decodeLatin1 $ B64.encode $ encodeMessage e
     req url = SQS.sendMessage url event & SQS.smMessageGroupId .~ Just "team.events"
 
 --------------------------------------------------------------------------------

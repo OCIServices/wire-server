@@ -54,11 +54,14 @@ import Network.Wai.Utilities
 import Prelude hiding (head, mapM)
 
 import qualified Data.Set as Set
+import qualified Galley.Aws as Aws
 import qualified Galley.Data as Data
 import qualified Galley.Data.Types as Data
 import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
 import qualified Galley.Types.Teams as Teams
+import qualified Galley.Types.TeamEvents as Journal
+
 
 getTeam :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeam (zusr::: tid ::: _) =
@@ -100,6 +103,7 @@ createBindingTeam (zusr ::: tid ::: req ::: _) = do
     BindingNewTeam body <- fromBody req invalidPayload
     let owner  = newTeamMember zusr fullPermissions
     team <- Data.createTeam (Just tid) zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) Binding
+    journal $ Journal.teamCreate tid zusr
     finishCreateTeam team owner [] Nothing
 
 updateTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
@@ -108,6 +112,8 @@ updateTeam (zusr::: zcon ::: tid ::: req ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr SetTeamData membs
     Data.updateTeam tid body
+    let bUsers = view userId <$> filter (`hasPermission` SetBilling) membs
+    journal $ Journal.teamUpdate tid (fromIntegral $ length membs) bUsers
     now <- liftIO getCurrentTime
     let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate body)
     let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
@@ -144,6 +150,8 @@ uncheckedDeleteTeam zusr zcon tid = do
         when ((view teamBinding . Data.tdTeam <$> team) == Just Binding) $
             mapM_ (deleteUser . view userId) membs
         Data.deleteTeam tid
+        journal $ Journal.teamDelete tid
+        pure ()
   where
     pushEvents now membs c pp = do
         mm <- flip nonTeamMembers membs <$> Data.members (c^.conversationId)
@@ -366,3 +374,9 @@ finishCreateTeam team owner others zcon = do
     let r = membersToRecipients Nothing others
     push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
     pure (empty & setStatus status201 . location (team^.teamId))
+
+journal :: IO Journal.TeamEvent -> Galley ()
+journal e = do
+    env <- view aEnv
+    event <- liftIO e
+    void $ Aws.execute env (Aws.enqueue event)
