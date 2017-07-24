@@ -123,22 +123,6 @@ createTeamConv g u tinfo us name = do
               ) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
-getBilling :: Galley -> TeamId -> UserId -> Http BillingData
-getBilling g tid uid = do
-    r <- get  ( g
-              . zUser uid
-              . zConn "conn"
-              . zType "access"
-              . paths ["teams", toByteString' tid, "billing"]
-              ) <!! const 200 === statusCode
-    pure (fromJust (decodeBody r))
-
-setBilling :: Galley -> TeamId -> UserId -> BillingData -> Http ResponseLBS
-setBilling g tid uid b = put $ g
-              . zUser uid . zConn "conn" . zType "access"
-              . paths ["teams", toByteString' tid, "billing"]
-              . json b
-
 postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Http ResponseLBS
 postConv g u us name a = do
     let conv = NewConv us name (Set.fromList a) Nothing

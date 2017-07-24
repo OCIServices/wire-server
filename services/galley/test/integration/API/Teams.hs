@@ -51,7 +51,6 @@ tests g b c m a = testGroup "Teams API"
     , test m "delete team conversation" (testDeleteTeamConv g b c)
     , test m "update team data" (testUpdateTeam g b c)
     , test m "update team member" (testUpdateTeamMember g b c)
-    , test m "update team billing info" (testUpdateBilling g b)
     ]
 
 timeout :: WS.Timeout
@@ -609,18 +608,3 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
         case evtData e of
             Just (Conv.EdMembers mm) -> mm @?= Conv.Members [usr]
             other                    -> assertFailure $ "Unexpected event data: " <> show other
-
-testUpdateBilling :: Galley -> Brig -> Http ()
-testUpdateBilling g brig = do
-    owner <- Util.randomUser brig
-    tid   <- Util.createTeamInternal g "foo" owner
-    -- create initial billing information
-    b1     <- BillingData <$> Util.randomEmail
-    _      <- Util.setBilling g tid owner b1
-    b1'    <- Util.getBilling g tid owner
-    liftIO $ assertEqual "billingData" b1 b1'
-    -- update
-    b2     <- BillingData <$> Util.randomEmail
-    _      <- Util.setBilling g tid owner b2
-    b2'    <- Util.getBilling g tid owner
-    liftIO $ assertEqual "billingData" b2 b2'

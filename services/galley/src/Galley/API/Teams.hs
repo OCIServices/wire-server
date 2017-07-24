@@ -21,8 +21,6 @@ module Galley.API.Teams
     , uncheckedAddTeamMember
     , uncheckedGetTeamMember
     , uncheckedRemoveTeamMember
-    , getBilling
-    , setBilling
     ) where
 
 import Cassandra (result, hasMore)
@@ -283,20 +281,6 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
         []     -> push1 p
         (m:mm) -> pushSome [p, newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
     Data.removeTeamConv tid cid
-    pure empty
-
-getBilling :: UserId ::: TeamId ::: JSON -> Galley Response
-getBilling (zusr ::: tid ::: _) = do
-    membs <- Data.teamMembers tid
-    void $ permissionCheck zusr GetBilling membs
-    Data.getBilling tid >>= maybe (throwM billingNotFound) (pure . json)
-
-setBilling :: UserId ::: TeamId ::: Request ::: JSON -> Galley Response
-setBilling (zusr ::: tid ::: req ::: _) = do
-    body <- fromBody req invalidPayload
-    membs <- Data.teamMembers tid
-    void $ permissionCheck zusr SetBilling membs
-    Data.setBilling tid body
     pure empty
 
 -- Internal -----------------------------------------------------------------

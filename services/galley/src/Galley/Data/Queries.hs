@@ -89,15 +89,6 @@ updateTeamIcon = "update team set icon = ? where team = ?"
 updateTeamIconKey :: PrepQuery W (Text, TeamId) ()
 updateTeamIconKey = "update team set icon_key = ? where team = ?"
 
-insertTeamBilling :: PrepQuery W (TeamId, Email) ()
-insertTeamBilling = "insert into team_billing (team, email) values (?, ?)"
-
-deleteTeamBilling :: PrepQuery W (Identity TeamId) ()
-deleteTeamBilling = "delete from team_billing where team = ?"
-
-selectTeamBilling :: PrepQuery R (Identity TeamId) (Identity Email)
-selectTeamBilling = "select email from team_billing where team = ?"
-
 -- Conversations ------------------------------------------------------------
 
 selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (Set Access), Maybe Text, Maybe TeamId, Maybe Bool)

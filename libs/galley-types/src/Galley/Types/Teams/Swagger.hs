@@ -26,7 +26,6 @@ teamsModels =
     , update
     , teamMemberDelete
     , teamDelete
-    , billing
     ]
 
 team :: Model
@@ -196,8 +195,3 @@ teamMemberDelete = defineModel "teamDeleteData" $ do
     description "Data for a team member deletion request in case of binding teams."
     property "password" string' $
         description "The account password to authorise the deletion."
-
-billing :: Model
-billing = defineModel "Billing"  $ do
-    description "Billing information"
-    property "email" string' $ description "billing email"

@@ -90,10 +90,6 @@ module Galley.Types.Teams
     , TeamDeleteData
     , tdAuthPassword
     , newTeamDeleteData
-
-    , BillingData (..)
-    , bdEmail
-
     ) where
 
 import Control.Lens (makeLenses, (^.))
@@ -103,10 +99,9 @@ import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
 import Data.Id (TeamId, ConvId, UserId)
 import Data.Json.Util
+import Data.Maybe (mapMaybe, isNothing)
 import Data.Misc (PlainTextPassword (..))
 import Data.Monoid
-import Data.Maybe (mapMaybe, isNothing)
-import Data.Misc (Email)
 import Data.Range
 import Data.Set (Set)
 import Data.Text (Text)
@@ -222,7 +217,6 @@ newtype NewTeamMember = NewTeamMember
     { _ntmNewTeamMember :: TeamMember
     }
 
-<<<<<<< a03b602be4b2f14b312a7986b27947fad10d1974
 newtype TeamMemberDeleteData = TeamMemberDeleteData
     { _tmdAuthPassword :: PlainTextPassword
     }
@@ -230,10 +224,6 @@ newtype TeamMemberDeleteData = TeamMemberDeleteData
 newtype TeamDeleteData = TeamDeleteData
     { _tdAuthPassword :: PlainTextPassword
     }
-
-newtype BillingData = BillingData
-    { _bdEmail :: Email
-    } deriving (Eq, Show)
 
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
 newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
@@ -284,7 +274,6 @@ makeLenses ''Event
 makeLenses ''TeamUpdateData
 makeLenses ''TeamMemberDeleteData
 makeLenses ''TeamDeleteData
-makeLenses ''BillingData
 
 newPermissions :: Set Perm -> Set Perm -> Maybe Permissions
 newPermissions a b
@@ -575,12 +564,3 @@ instance ToJSON TeamDeleteData where
     toJSON tdd = object
         [ "password" .= _tdAuthPassword tdd
         ]
-
-instance ToJSON BillingData where
-    toJSON b = object
-        $ "email"  .= _bdEmail b
-        # []
-
-instance FromJSON BillingData where
-    parseJSON = withObject "billing data" $ \o ->
-        BillingData <$> o .: "email"

@@ -311,33 +311,6 @@ sitemap = do
         errorResponse Error.noTeamMember
         errorResponse (Error.operationDenied DeleteConversation)
 
-
-    get "/teams/:tid/billing" (continue getBilling) $
-        zauthUserId
-        .&. capture "tid"
-        .&. accept "application" "json"
-
-    document "GET" "getBilling" $ do
-        summary "Get billing information for specified team"
-        parameter Path "tid" bytes' $
-            description "Team ID"
-        errorResponse Error.billingNotFound
-        errorResponse (Error.operationDenied GetBilling)
-
-    put "/teams/:tid/billing" (continue setBilling) $
-        zauthUserId
-        .&. capture "tid"
-        .&. request
-        .&. accept "application" "json"
-
-    document "PUT" "setBilling" $ do
-        summary "Create or update billing information for specified team"
-        parameter Path "tid" bytes' $
-            description "Team ID"
-        body (ref TeamsModel.billing) $
-            description "JSON body"
-        errorResponse (Error.operationDenied SetBilling)
-
    --
 
     get "/bot/conversation" (continue getBotConversation) $
