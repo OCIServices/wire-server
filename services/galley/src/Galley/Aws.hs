@@ -95,8 +95,8 @@ instance MonadBaseControl IO Amazon where
 instance AWS.MonadAWS Amazon where
     liftAWS aws = view awsEnv >>= \e -> AWS.runAWS e aws
 
-mkEnv :: Logger -> Opts -> Manager -> IO Env
-mkEnv lgr opts mgr = do
+mkEnv :: Logger -> Manager -> JournalOpts -> IO Env
+mkEnv lgr mgr opts = do
     let g = Logger.clone (Just "aws.galley") lgr
     e <- configure <$> mkAwsEnv g
     q <- getQueueUrl e (opts^.queueName)

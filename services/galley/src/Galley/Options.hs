@@ -14,6 +14,8 @@ module Galley.Options
     , keyspace
     , serverPort
     , httpPoolSz
+    , JournalOpts
+    , journalOpts
     , queueName
     , awsRegion
     , parseOptions
@@ -47,10 +49,15 @@ data Opts = Opts
     , _gundeckPort :: !Port
     , _discoUrl    :: !(Maybe String)
     , _httpPoolSz  :: !Int
-    , _queueName   :: !Text
-    , _awsRegion   :: !Region
+    , _journalOpts :: !(Maybe JournalOpts)
     }
 
+data JournalOpts = JournalOpts
+    { _queueName :: !Text
+    , _awsRegion :: !Region
+    }
+
+makeLenses ''JournalOpts
 makeLenses ''Opts
 
 parseOptions :: IO Opts
@@ -120,7 +127,12 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
                 <> help "number of connections for the http pool"
                 <> value 128)
 
-        <*> (textOption $
+        <*> optional journalOptsParser
+
+    journalOptsParser :: Parser JournalOpts
+    journalOptsParser = JournalOpts
+
+        <$> (textOption $
                 long "team-events-queue-name"
                 <> metavar "STRING"
                 <> help "sqs queue name to send team events")

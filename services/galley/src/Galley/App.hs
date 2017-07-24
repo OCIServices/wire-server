@@ -86,7 +86,7 @@ data Env = Env
     , _cstate      :: ClientState
     , _deleteQueue :: Q.Queue DeleteItem
     , _extEnv      :: ExtEnv
-    , _aEnv        :: Aws.Env
+    , _aEnv        :: Maybe Aws.Env
     }
 
 -- | Environment specific to the communication with external
@@ -137,7 +137,7 @@ createEnv m o = do
     Env mempty m o l mgr <$> initCassandra o l
                          <*> Q.new 16000
                          <*> initExtEnv
-                         <*> Aws.mkEnv l o mgr
+                         <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o^.journalOpts)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do

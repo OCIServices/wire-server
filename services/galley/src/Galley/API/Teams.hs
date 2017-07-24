@@ -376,7 +376,8 @@ finishCreateTeam team owner others zcon = do
     pure (empty & setStatus status201 . location (team^.teamId))
 
 journal :: IO Journal.TeamEvent -> Galley ()
-journal e = do
-    env <- view aEnv
-    event <- liftIO e
-    void $ Aws.execute env (Aws.enqueue event)
+journal ev = do
+    mEnv <- view aEnv
+    for_ mEnv $ \e -> do
+        event <- liftIO ev
+        void $ Aws.execute e (Aws.enqueue event)
