@@ -25,6 +25,8 @@ library
         Galley.API
         Galley.App
         Galley.Options
+        Galley.Aws
+        Proto.Galley.Types.TeamEvents
 
     other-modules:
         Galley.API.Clients
@@ -36,7 +38,6 @@ library
         Galley.API.Teams
         Galley.API.Update
         Galley.API.Util
-        Galley.Aws
         Galley.Data
         Galley.Data.Instances
         Galley.Data.Queries
@@ -49,7 +50,6 @@ library
         Galley.Validation
         Galley.Types.Clients
         Galley.Types.TeamEvents
-        Proto.Galley.Types.TeamEvents
 
     default-language:   Haskell2010
 
@@ -72,6 +72,7 @@ library
       , cassandra-util          >= 0.16.2
       , cereal                  >= 0.4
       , containers              >= 0.5
+      , enclosed-exceptions     >= 1.0
       , errors                  >= 2.0
       , safe-exceptions         >= 0.1
       , exceptions              >= 0.4
@@ -175,6 +176,7 @@ test-suite galley-integration
         API
         API.Teams
         API.Util
+        API.QueueUtils
 
     build-depends:
         aeson
@@ -193,23 +195,29 @@ test-suite galley-integration
       , data-timeout
       , errors
       , exceptions
+      , galley
       , galley-types
       , gundeck-types
       , HsOpenSSL
+      , HsOpenSSL-x509-system
       , http-client
       , http-client-openssl-ext
       , http-types
       , lens
+      , mtl
       , network
       , protobuf
+      , proto-lens
+      , proto-lens-protoc
       , QuickCheck
       , transformers
       , tasty                >= 0.8
       , tasty-cannon         >= 0.3.2
       , tasty-hunit          >= 0.9
       , text
-      , tls                  >= 1.3.8
       , time
+      , tinylog
+      , tls                  >= 1.3.8
       , types-common
       , unordered-containers
       , uri-bytestring
@@ -218,5 +226,3 @@ test-suite galley-integration
       , wai-route
       , wai-utilities
       , warp
-      , warp-tls             >= 3.2
-

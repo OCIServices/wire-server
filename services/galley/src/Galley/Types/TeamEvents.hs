@@ -6,9 +6,6 @@ module Galley.Types.TeamEvents
     ( teamCreate
     , teamUpdate
     , teamDelete
-
-      -- * Re-Exports
-    , TeamEvent (..)
     ) where
 
 import Control.Monad.IO.Class

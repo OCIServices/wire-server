@@ -14,7 +14,7 @@ module Galley.Options
     , keyspace
     , serverPort
     , httpPoolSz
-    , JournalOpts
+    , JournalOpts (..)
     , journalOpts
     , queueName
     , awsRegion

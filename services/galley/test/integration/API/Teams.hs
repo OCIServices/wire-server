@@ -23,6 +23,7 @@ import Gundeck.Types.Notification
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
+import API.QueueUtils
 
 import qualified API.Util as Util
 import qualified Data.List1 as List1
@@ -30,14 +31,15 @@ import qualified Data.Set as Set
 import qualified Galley.Types as Conv
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon as WS
+import qualified Galley.Aws as Aws
 
-tests :: Galley -> Brig -> Cannon -> Manager -> TestTree
-tests g b c m = testGroup "Teams API"
+tests :: Galley -> Brig -> Cannon -> Manager -> Aws.Env -> TestTree
+tests g b c m a = testGroup "Teams API"
     [ test m "create team" (testCreateTeam g b c)
-    , test m "create multiple binding teams fail" (testCreateMulitpleBindingTeams g b)
+    , test m "create multiple binding teams fail" (testCreateMulitpleBindingTeams g b a)
     , test m "create team with members" (testCreateTeamWithMembers g b c)
     , test m "add new team member" (testAddTeamMember g b c)
-    , test m "add new team member binding teams" (testAddTeamMemberCheckBound g b)
+    , test m "add new team member binding teams" (testAddTeamMemberCheckBound g b a)
     , test m "add new team member internal" (testAddTeamMemberInternal g b c)
     , test m "remove team member" (testRemoveTeamMember g b c)
     , test m "remove team member (binding)" (testRemoveBindingTeamMember g b c)
@@ -70,11 +72,12 @@ testCreateTeam g b c = do
                 e^.eventTeam @?= tid
                 e^.eventData @?= Just (EdTeamCreate team)
             void $ WS.assertSuccess eventChecks
-    
-testCreateMulitpleBindingTeams :: Galley -> Brig -> Http ()
-testCreateMulitpleBindingTeams g b = do
+
+testCreateMulitpleBindingTeams :: Galley -> Brig -> Aws.Env -> Http ()
+testCreateMulitpleBindingTeams g b a = do
     owner <- Util.randomUser b
     _     <- Util.createTeamInternal g "foo" owner
+    assertQueue a tCreate
     -- Cannot create more teams if bound (used internal API)
     let nt = NonBindingNewTeam $ newNewTeam (unsafeRange "owner") (unsafeRange "icon")
     void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
@@ -143,10 +146,11 @@ testAddTeamMember g b c = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberJoin usr)
 
-testAddTeamMemberCheckBound :: Galley -> Brig -> Http ()
-testAddTeamMemberCheckBound g b = do
+testAddTeamMemberCheckBound :: Galley -> Brig -> Aws.Env -> Http ()
+testAddTeamMemberCheckBound g b a = do
     ownerBound <- Util.randomUser b
     tidBound   <- Util.createTeamInternal g "foo" ownerBound
+    assertQueue a tCreate
 
     rndMem <- flip newTeamMember (Util.symmPermissions []) <$> Util.randomUser b
     -- Cannot add any users to bound teams

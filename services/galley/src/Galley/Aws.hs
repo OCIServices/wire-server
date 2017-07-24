@@ -9,12 +9,12 @@
 {-# LANGUAGE UndecidableInstances       #-}
 
 module Galley.Aws
-    ( -- * Monad
-      Env
+    ( Env
     , mkEnv
     , awsEnv
     , region
     , eventQueue
+    , QueueUrl (..)
     , Amazon
     , execute
     , enqueue

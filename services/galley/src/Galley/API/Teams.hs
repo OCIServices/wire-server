@@ -61,7 +61,7 @@ import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
 import qualified Galley.Types.Teams as Teams
 import qualified Galley.Types.TeamEvents as Journal
-
+import qualified Proto.Galley.Types.TeamEvents as Journal
 
 getTeam :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeam (zusr::: tid ::: _) =
