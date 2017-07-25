@@ -37,7 +37,7 @@ import qualified Data.Text                as T
 import qualified Galley.Aws               as Aws
 import qualified Test.Tasty.Cannon        as WS
 
-tests :: Galley -> Brig -> Cannon -> Aws.Env -> IO TestTree
+tests :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> IO TestTree
 tests g b c a = do
     m <- newManager defaultManagerSettings
     pure $ testGroup "Galley integration tests" [ mainTests m, teamTests m ]

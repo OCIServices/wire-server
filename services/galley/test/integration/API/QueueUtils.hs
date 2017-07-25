@@ -33,11 +33,13 @@ import qualified Proto.Galley.Types.TeamEvents as E
 import qualified Data.Text.Encoding as Text
 import qualified OpenSSL.X509.SystemStore as Ssl
 
-assertQueue :: MonadIO m => Aws.Env -> (E.TeamEvent -> IO ()) -> m ()
-assertQueue env check = liftIO $ Aws.execute env $ fetchMessage check
+assertQueue :: MonadIO m => Maybe Aws.Env -> (E.TeamEvent -> IO ()) -> m ()
+assertQueue (Just env) check = liftIO $ Aws.execute env $ fetchMessage check
+assertQueue Nothing _ = return ()
 
-assertNoMessages :: MonadIO m => Aws.Env -> m ()
-assertNoMessages env = liftIO $ Aws.execute env ensureNoMessages
+assertQueueEmpty :: MonadIO m => Maybe Aws.Env -> m ()
+assertQueueEmpty (Just env) = liftIO $ Aws.execute env ensureNoMessages
+assertQueueEmpty Nothing = return ()
 
 tCreate :: E.TeamEvent -> IO ()
 tCreate e = do

@@ -19,7 +19,8 @@ main = withOpenSSL $ do
         g <- (host "localhost" .) . port . read <$> getEnv "GALLEY_WEB_PORT"
         b <- (host "localhost" .) . port . read <$> getEnv "BRIG_WEB_PORT"
         c <- (host "localhost" .) . port . read <$> getEnv "CANNON_WEB_PORT"
-        q <- pack <$> getEnv "GALLEY_SQS_TEAM_EVENTS"
-        awsEnv <- Utils.mkAWSEnv q
+        -- unset this env variable to disable testing SQS team events:
+        q <- fmap pack <$> lookupEnv "GALLEY_SQS_TEAM_EVENTS"
+        awsEnv <- maybe (return Nothing) (fmap Just . Utils.mkAWSEnv) q
         defaultMain =<< API.tests g b c awsEnv
 

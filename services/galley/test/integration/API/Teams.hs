@@ -33,7 +33,7 @@ import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon as WS
 import qualified Galley.Aws as Aws
 
-tests :: Galley -> Brig -> Cannon -> Manager -> Aws.Env -> TestTree
+tests :: Galley -> Brig -> Cannon -> Manager -> Maybe Aws.Env -> TestTree
 tests g b c m a = testGroup "Teams API"
     [ test m "create team" (testCreateTeam g b c a)
     , test m "create multiple binding teams fail" (testCreateMulitpleBindingTeams g b a)
@@ -56,13 +56,13 @@ tests g b c m a = testGroup "Teams API"
 timeout :: WS.Timeout
 timeout = 3 # Second
 
-testCreateTeam :: Galley -> Brig -> Cannon -> Aws.Env -> Http ()
+testCreateTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testCreateTeam g b c a = do
     owner <- Util.randomUser b
     WS.bracketR c owner $ \wsOwner -> do
         tid   <- Util.createTeam g "foo" owner []
         team  <- Util.getTeam g owner tid
-        assertNoMessages a
+        assertQueueEmpty a
         liftIO $ do
             assertEqual "owner" owner (team^.teamCreator)
             eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
@@ -73,7 +73,7 @@ testCreateTeam g b c a = do
                 e^.eventData @?= Just (EdTeamCreate team)
             void $ WS.assertSuccess eventChecks
 
-testCreateMulitpleBindingTeams :: Galley -> Brig -> Aws.Env -> Http ()
+testCreateMulitpleBindingTeams :: Galley -> Brig -> Maybe Aws.Env -> Http ()
 testCreateMulitpleBindingTeams g b a = do
     owner <- Util.randomUser b
     _     <- Util.createTeamInternal g "foo" owner
@@ -146,7 +146,7 @@ testAddTeamMember g b c = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberJoin usr)
 
-testAddTeamMemberCheckBound :: Galley -> Brig -> Aws.Env -> Http ()
+testAddTeamMemberCheckBound :: Galley -> Brig -> Maybe Aws.Env -> Http ()
 testAddTeamMemberCheckBound g b a = do
     ownerBound <- Util.randomUser b
     tidBound   <- Util.createTeamInternal g "foo" ownerBound
@@ -164,7 +164,7 @@ testAddTeamMemberCheckBound g b a = do
     post (g . paths ["teams", toByteString' tid, "members"] . zUser owner . zConn "conn" . json (newNewTeamMember boundMem)) !!!
         const 403 === statusCode
 
-testAddTeamMemberInternal :: Galley -> Brig -> Cannon -> Aws.Env -> Http ()
+testAddTeamMemberInternal :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddTeamMemberInternal g b c a = do
     owner <- Util.randomUser b
     tid <- Util.createTeam g "foo" owner []
@@ -229,7 +229,7 @@ testRemoveTeamMember g b c = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberLeave usr)
 
-testRemoveBindingTeamMember :: Galley -> Brig -> Cannon -> Aws.Env -> Http ()
+testRemoveBindingTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testRemoveBindingTeamMember g b c a = do
     owner <- Util.randomUser b
     tid   <- Util.createTeamInternal g "foo" owner
@@ -392,7 +392,7 @@ testAddTeamMemberToConv g b = do
         const 403                === statusCode
         const "operation-denied" === (Error.label . Util.decodeBody' "error label")
 
-testDeleteTeam :: Galley -> Brig -> Cannon -> Aws.Env -> Http ()
+testDeleteTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testDeleteTeam g b c a = do
     owner <- Util.randomUser b
     let p = Util.symmPermissions [AddConversationMember]
@@ -438,9 +438,9 @@ testDeleteTeam g b c a = do
             Util.getSelfMember g u x !!! do
                 const 200         === statusCode
                 const (Just Null) === Util.decodeBody
-    assertNoMessages a
+    assertQueueEmpty a
 
-testDeleteBindingTeam :: Galley -> Brig -> Cannon -> Aws.Env -> Http ()
+testDeleteBindingTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testDeleteBindingTeam g b c a = do
     owner  <- Util.randomUser b
     tid    <- Util.createTeamInternal g "foo" owner
@@ -564,7 +564,7 @@ testUpdateTeam g b c = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdTeamUpdate upd)
 
-testUpdateTeamMember :: Galley -> Brig -> Cannon -> Aws.Env -> Http ()
+testUpdateTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testUpdateTeamMember g b c a = do
     owner <- Util.randomUser b
     let p = Util.symmPermissions [DeleteConversation]
@@ -584,7 +584,7 @@ testUpdateTeamMember g b c a = do
         checkTeamMemberUpdateEvent tid (member^.userId) wsOwner
         checkTeamMemberUpdateEvent tid (member^.userId) wsMember
         WS.assertNoEvent timeout [wsOwner, wsMember]
-        assertNoMessages a
+        assertQueueEmpty a
   where
     checkTeamMemberUpdateEvent tid uid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
