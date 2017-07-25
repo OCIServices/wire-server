@@ -36,6 +36,9 @@ import qualified OpenSSL.X509.SystemStore as Ssl
 assertQueue :: MonadIO m => Aws.Env -> (E.TeamEvent -> IO ()) -> m ()
 assertQueue env check = liftIO $ Aws.execute env $ fetchMessage check
 
+assertNoMessages :: MonadIO m => Aws.Env -> m ()
+assertNoMessages env = liftIO $ Aws.execute env ensureNoMessages
+
 tCreate :: E.TeamEvent -> IO ()
 tCreate e = do
     assertEqual "eventType" E.TeamEvent'TEAM_CREATE (e^.E.eventType)
@@ -44,29 +47,38 @@ tCreate e = do
 tDelete :: E.TeamEvent -> IO ()
 tDelete e = assertEqual "eventType" E.TeamEvent'TEAM_DELETE (e^.E.eventType)
 
-tUpdate :: E.TeamEvent -> Int32 -> [UserId] -> IO ()
-tUpdate e c uids = do
-    assertEqual "eventType" E.TeamEvent'TEAM_CREATE (e^.E.eventType)
+tUpdate :: Int32 -> [UserId] -> E.TeamEvent -> IO ()
+tUpdate c uids e = do
+    assertEqual "eventType" E.TeamEvent'TEAM_UPDATE (e^.E.eventType)
     assertEqual "count" c (e^.E.eventData^.E.memberCount)
     assertEqual "billing users" (toByteString' <$> uids) (e^.E.eventData^.E.billingUser)
+
+ensureNoMessages :: Amazon ()
+ensureNoMessages = do
+    QueueUrl url <- view eventQueue
+    msgs <- view SQS.rmrsMessages <$> AWS.send (receive url)
+    liftIO $ assertEqual "length" 0 (length msgs)
 
 fetchMessage :: (E.TeamEvent -> IO ()) -> Amazon ()
 fetchMessage callback = do
     QueueUrl url <- view eventQueue
     msgs <- view SQS.rmrsMessages <$> AWS.send (receive url)
-    mapM_ (onMessage url) msgs
-  where
-    receive url = SQS.receiveMessage url
-                    & set SQS.rmWaitTimeSeconds (Just 10)
-                    . set SQS.rmMaxNumberOfMessages (Just 1)
+    liftIO $ assertEqual "expected 1 message" 1 (length msgs)
+    mapM_ (onMessage url callback) msgs
 
-    onMessage url m =
-      case (>>= decodeMessage) . B64.decode . Text.encodeUtf8 <$> (m^.SQS.mBody) of
-          Just (Right e) -> do
-              info $ msg $ val "SQS event received"
-              liftIO $ callback e
-              for_ (m ^. SQS.mReceiptHandle) (void . AWS.send . SQS.deleteMessage url)
-          _ -> err . msg $ val "Failed to parse SQS event"
+receive :: Text -> SQS.ReceiveMessage
+receive url = SQS.receiveMessage url
+                & set SQS.rmWaitTimeSeconds (Just 5)
+                . set SQS.rmMaxNumberOfMessages (Just 1)
+
+onMessage :: Text -> (E.TeamEvent -> IO()) -> SQS.Message -> Amazon ()
+onMessage url callback m =
+  case (>>= decodeMessage) . B64.decode . Text.encodeUtf8 <$> (m^.SQS.mBody) of
+      Just (Right e) -> do
+          debug $ msg $ val "SQS event received"
+          liftIO $ callback e
+          for_ (m ^. SQS.mReceiptHandle) (void . AWS.send . SQS.deleteMessage url)
+      _ -> err . msg $ val "Failed to parse SQS event"
 
 initHttpManager :: IO Manager
 initHttpManager = do

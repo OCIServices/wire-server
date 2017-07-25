@@ -110,8 +110,6 @@ updateTeam (zusr::: zcon ::: tid ::: req ::: _) = do
     membs <- Data.teamMembers tid
     void $ permissionCheck zusr SetTeamData membs
     Data.updateTeam tid body
-    let bUsers = view userId <$> filter (`hasPermission` SetBilling) membs
-    journal $ Journal.teamUpdate tid (fromIntegral $ length membs) bUsers
     now <- liftIO getCurrentTime
     let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate body)
     let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
@@ -147,9 +145,10 @@ uncheckedDeleteTeam zusr zcon tid = do
         pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : events)
         when ((view teamBinding . Data.tdTeam <$> team) == Just Binding) $
             mapM_ (deleteUser . view userId) membs
-        Data.deleteTeam tid
-        journal $ Journal.teamDelete tid
-        pure ()
+        rsp <- Data.deleteTeam tid
+        when ((view teamBinding . Data.tdTeam <$> team) == Just Binding) $
+            journal $ Journal.teamDelete tid
+        return rsp
   where
     pushEvents now membs c pp = do
         mm <- flip nonTeamMembers membs <$> Data.members (c^.conversationId)
@@ -198,7 +197,11 @@ uncheckedAddTeamMember :: TeamId ::: Request ::: JSON ::: JSON -> Galley Respons
 uncheckedAddTeamMember (tid ::: req ::: _) = do
     nmem <- fromBody req invalidPayload
     mems <- Data.teamMembers tid
-    addTeamMemberInternal tid Nothing Nothing nmem mems
+    rsp <- addTeamMemberInternal tid Nothing Nothing nmem mems
+    let membs = nmem^.ntmNewTeamMember : mems
+    let bUsers = view userId <$> filter (`hasPermission` SetBilling) membs
+    journal $ Journal.teamUpdate tid (fromIntegral $ length membs) bUsers
+    return rsp
 
 updateTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
@@ -212,21 +215,32 @@ updateTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
     unless (isTeamMember user members) $
         throwM teamMemberNotFound
     Data.updateTeamMember tid user perm
+    team <- Data.tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
+    when (team^.teamBinding == Binding) $
+        journalUpdate body user members
     now <- liftIO getCurrentTime
     let e = newEvent MemberUpdate tid now & eventData .~ Just (EdMemberUpdate user)
     let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) members)
     push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
     pure empty
+  where
+    journalUpdate body user members = do
+        let membs = body^.ntmNewTeamMember : filter (\u -> u^.userId /= user) members
+        let bUsers = view userId <$> filter (`hasPermission` SetBilling) membs
+        journal $ Journal.teamUpdate tid (fromIntegral $ length membs) bUsers
 
 deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
 deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
     mems <- Data.teamMembers tid
     void $ permissionCheck zusr RemoveTeamMember mems
     team <- Data.tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
-    if (team^.teamBinding == Binding && isTeamMember remove mems) then do
+    if team^.teamBinding == Binding && isTeamMember remove mems then do
         body <- fromBody req invalidPayload
         ensureReAuthorised zusr (body^.tmdAuthPassword)
         deleteUser remove
+        let membs = filter (\u -> u^.userId /= remove) mems
+        let bUsers = view userId <$> filter (`hasPermission` SetBilling) membs
+        journal $ Journal.teamUpdate tid (fromIntegral $ length membs) bUsers
         pure (empty & setStatus status202)
     else do
         uncheckedRemoveTeamMember zusr (Just zcon) tid remove mems
