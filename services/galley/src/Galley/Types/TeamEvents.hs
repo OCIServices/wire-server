@@ -8,33 +8,37 @@ module Galley.Types.TeamEvents
     , teamDelete
     ) where
 
-import Control.Monad.IO.Class
+import Control.Lens
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Int
 import Data.Id
+import Galley.Types.Teams
 import Data.Time.Clock (getCurrentTime)
-import Data.Time.Zones.Internal
+import Data.Time.Clock.POSIX
 import Prelude hiding (head, mapM)
 
 import Proto.Galley.Types.TeamEvents
 
 teamCreate :: TeamId -> UserId -> IO TeamEvent
-teamCreate tid uid = do
-    now <- utcTimeToInt64 <$> liftIO getCurrentTime
-    return $ TeamEvent TeamEvent'TEAM_CREATE (toByteString' tid) now (Just (evData 1 [uid]))
+teamCreate tid uid = TeamEvent
+    TeamEvent'TEAM_CREATE (toByteString' tid) <$> now <*> return (Just (evData 1 [uid]))
 
-teamUpdate :: TeamId -> Int32 -> [UserId] -> IO TeamEvent
-teamUpdate tid count uids = do
-    now <- utcTimeToInt64 <$> liftIO getCurrentTime
-    return $ TeamEvent TeamEvent'TEAM_UPDATE (toByteString' tid) now (Just (evData count uids))
+teamUpdate :: TeamId -> [TeamMember] -> IO TeamEvent
+teamUpdate tid membs = do
+    n <- now
+    let bUsers = view userId <$> filter (`hasPermission` SetBilling) membs
+    let eData = evData (fromIntegral $ length membs) bUsers
+    return $ TeamEvent TeamEvent'TEAM_UPDATE (toByteString' tid) n (Just eData)
 
 teamDelete :: TeamId -> IO TeamEvent
-teamDelete tid = do
-    now <- utcTimeToInt64 <$> liftIO getCurrentTime
-    return $ TeamEvent TeamEvent'TEAM_DELETE (toByteString' tid) now Nothing
+teamDelete tid = TeamEvent
+    TeamEvent'TEAM_DELETE (toByteString' tid) <$> now <*> return Nothing
 
 ----------------------------------------------------------------------------
 -- utils
 
 evData :: Int32 -> [UserId] -> TeamEvent'EventData
 evData c uids = TeamEvent'EventData c (toByteString' <$> uids)
+
+now :: IO Int64
+now = round . utcTimeToPOSIXSeconds <$> getCurrentTime

@@ -196,9 +196,7 @@ uncheckedAddTeamMember (tid ::: req ::: _) = do
     nmem <- fromBody req invalidPayload
     mems <- Data.teamMembers tid
     rsp <- addTeamMemberInternal tid Nothing Nothing nmem mems
-    let membs = nmem^.ntmNewTeamMember : mems
-    let bUsers = view userId <$> filter (`hasPermission` SetBilling) membs
-    journal $ Journal.teamUpdate tid (fromIntegral $ length membs) bUsers
+    journal $ Journal.teamUpdate tid (nmem^.ntmNewTeamMember : mems)
     return rsp
 
 updateTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
@@ -215,17 +213,12 @@ updateTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
     Data.updateTeamMember tid user perm
     team <- Data.tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
     when (team^.teamBinding == Binding) $
-        journalUpdate body user members
+        journal $ Journal.teamUpdate tid (body^.ntmNewTeamMember : filter (\u -> u^.userId /= user) members)
     now <- liftIO getCurrentTime
     let e = newEvent MemberUpdate tid now & eventData .~ Just (EdMemberUpdate user)
     let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) members)
     push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
     pure empty
-  where
-    journalUpdate body user members = do
-        let membs = body^.ntmNewTeamMember : filter (\u -> u^.userId /= user) members
-        let bUsers = view userId <$> filter (`hasPermission` SetBilling) membs
-        journal $ Journal.teamUpdate tid (fromIntegral $ length membs) bUsers
 
 deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
 deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
@@ -236,9 +229,7 @@ deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
         body <- fromBody req invalidPayload
         ensureReAuthorised zusr (body^.tmdAuthPassword)
         deleteUser remove
-        let membs = filter (\u -> u^.userId /= remove) mems
-        let bUsers = view userId <$> filter (`hasPermission` SetBilling) membs
-        journal $ Journal.teamUpdate tid (fromIntegral $ length membs) bUsers
+        journal $ Journal.teamUpdate tid (filter (\u -> u^.userId /= remove) mems)
         pure (empty & setStatus status202)
     else do
         uncheckedRemoveTeamMember zusr (Just zcon) tid remove mems
@@ -376,4 +367,4 @@ journal ev = do
     mEnv <- view aEnv
     for_ mEnv $ \e -> do
         event <- liftIO ev
-        void $ Aws.execute e (Aws.enqueue event)
+        Aws.execute e (Aws.enqueue event)
