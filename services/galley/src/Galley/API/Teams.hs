@@ -143,12 +143,10 @@ uncheckedDeleteTeam zusr zcon tid = do
         let e = newEvent TeamDelete tid now
         let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
         pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : events)
-        when ((view teamBinding . Data.tdTeam <$> team) == Just Binding) $
+        when ((view teamBinding . Data.tdTeam <$> team) == Just Binding) $ do
             mapM_ (deleteUser . view userId) membs
-        rsp <- Data.deleteTeam tid
-        when ((view teamBinding . Data.tdTeam <$> team) == Just Binding) $
             journal $ Journal.teamDelete tid
-        return rsp
+        Data.deleteTeam tid
   where
     pushEvents now membs c pp = do
         mm <- flip nonTeamMembers membs <$> Data.members (c^.conversationId)
