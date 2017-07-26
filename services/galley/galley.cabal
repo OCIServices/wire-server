@@ -9,7 +9,7 @@ license:        AGPL-3
 license-file:   LICENSE
 build-type:     Custom
 cabal-version:  >= 1.10
-extra-source-files: src/Galley/Types/TeamEvents.proto
+extra-source-files: src/Galley/Intra/TeamEvents.proto
 
 custom-setup
     setup-depends: base, Cabal, proto-lens-protoc
@@ -26,7 +26,7 @@ library
         Galley.App
         Galley.Options
         Galley.Aws
-        Proto.Galley.Types.TeamEvents
+        Proto.Galley.Intra.TeamEvents
 
     other-modules:
         Galley.API.Clients
@@ -46,10 +46,10 @@ library
         Galley.External
         Galley.Intra.Push
         Galley.Intra.User
+        Galley.Intra.Journal
         Galley.Queue
         Galley.Validation
         Galley.Types.Clients
-        Galley.Types.TeamEvents
 
     default-language:   Haskell2010
 

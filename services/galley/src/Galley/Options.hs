@@ -52,6 +52,9 @@ data Opts = Opts
     , _journalOpts :: !(Maybe JournalOpts)
     }
 
+-- [Note: journaling]
+-- Journaling can be disabled simply by not passing the JournalOpts when starting the service
+
 data JournalOpts = JournalOpts
     { _queueName :: !Text
     , _awsRegion :: !Region
