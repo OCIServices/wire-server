@@ -26,35 +26,39 @@ import qualified Data.UUID as UUID
 import qualified Galley.Aws as Aws
 
 -- [Note: journaling]
--- The following journal operations are a no-op when the service
+-- Team journal operations to SQS are a no-op when the service
 -- is started without journaling arguments
 
 teamCreate :: TeamId -> UserId -> Galley ()
-teamCreate tid uid = do
-    mEnv <- view aEnv
-    for_ mEnv $ \e -> do
-        event <- TeamEvent TeamEvent'TEAM_CREATE (bytes tid) <$> now <*> pure (Just (evData 1 [uid]))
-        Aws.execute e (Aws.enqueue event)
+teamCreate t u = journal (t, u) teamCreate'
+  where
+    teamCreate' :: (TeamId, UserId) -> IO TeamEvent
+    teamCreate' (tid, uid) = TeamEvent TeamEvent'TEAM_CREATE (bytes tid) <$> now <*> pure (Just (evData 1 [uid]))
 
 teamUpdate :: TeamId -> [TeamMember] -> Galley ()
-teamUpdate tid mems = do
-    mEnv <- view aEnv
-    for_ mEnv $ \e -> do
-        n <- liftIO now
+teamUpdate t m = journal (t, m) teamUpdate'
+  where
+    teamUpdate' :: (TeamId, [TeamMember]) -> IO TeamEvent
+    teamUpdate' (tid, mems) = do
         let bUsers = view userId <$> filter (`hasPermission` SetBilling) mems
         let eData = evData (fromIntegral $ length mems) bUsers
-        let event = TeamEvent TeamEvent'TEAM_UPDATE (bytes tid) n (Just eData)
-        Aws.execute e (Aws.enqueue event)
+        TeamEvent TeamEvent'TEAM_UPDATE (bytes tid) <$> now <*> pure (Just eData)
 
 teamDelete :: TeamId -> Galley ()
-teamDelete tid = do
-    mEnv <- view aEnv
-    for_ mEnv $ \e -> do
-        event <- TeamEvent TeamEvent'TEAM_DELETE (bytes tid) <$> now <*> pure Nothing
-        Aws.execute e (Aws.enqueue event)
+teamDelete t = journal t teamDelete'
+  where
+    teamDelete' :: TeamId -> IO TeamEvent
+    teamDelete' tid = TeamEvent TeamEvent'TEAM_DELETE (bytes tid) <$> now <*> pure Nothing
 
 ----------------------------------------------------------------------------
 -- utils
+
+journal :: a -> (a -> IO TeamEvent) -> Galley ()
+journal a f = do
+    mEnv <- view aEnv
+    for_ mEnv $ \e -> do
+        event <- liftIO $ f a
+        Aws.execute e (Aws.enqueue event)
 
 bytes :: Id a -> ByteString
 bytes = toStrict . UUID.toByteString . toUUID
