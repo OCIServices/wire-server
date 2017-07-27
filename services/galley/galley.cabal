@@ -26,6 +26,8 @@ library
         Galley.App
         Galley.Options
         Galley.Aws
+        Galley.Data
+        Galley.Intra.Journal
         Proto.Galley.Intra.TeamEvents
 
     other-modules:
@@ -38,7 +40,6 @@ library
         Galley.API.Teams
         Galley.API.Update
         Galley.API.Util
-        Galley.Data
         Galley.Data.Instances
         Galley.Data.Queries
         Galley.Data.Services
@@ -46,7 +47,6 @@ library
         Galley.External
         Galley.Intra.Push
         Galley.Intra.User
-        Galley.Intra.Journal
         Galley.Queue
         Galley.Validation
         Galley.Types.Clients
@@ -224,3 +224,44 @@ test-suite galley-integration
       , wai-route
       , wai-utilities
       , warp
+
+executable galley-journaler
+    main-is:            Main.hs
+    hs-source-dirs:     journaler/src
+
+    default-language:   Haskell2010
+
+    build-depends:
+        base
+      , galley
+      , HsOpenSSL
+      , optparse-applicative
+      , cassandra-util
+      , lens
+      , text
+      , lifted-async
+      , mtl
+      , galley-types
+      , proto-lens
+      , proto-lens-protoc
+      , bytestring
+      , bytestring-conversion
+      , types-common
+      , time
+      , tinylog
+      , bytestring
+      , uuid
+
+
+    other-modules:
+        Journal
+        Options
+
+    ghc-options:
+        -Wall
+        -fwarn-tabs
+        -funbox-strict-fields
+        -threaded
+        -with-rtsopts=-N1
+        -with-rtsopts=-T
+        -rtsopts
