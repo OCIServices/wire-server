@@ -99,7 +99,7 @@ createBindingTeam (zusr ::: tid ::: req ::: _) = do
     BindingNewTeam body <- fromBody req invalidPayload
     let owner  = newTeamMember zusr fullPermissions
     team <- Data.createTeam (Just tid) zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) Binding
-    Journal.teamCreate tid zusr
+    Journal.journal $ Journal.JournaledTeamCreate tid zusr
     finishCreateTeam team owner [] Nothing
 
 updateTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
@@ -143,7 +143,7 @@ uncheckedDeleteTeam zusr zcon tid = do
         pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : events)
         when ((view teamBinding . Data.tdTeam <$> team) == Just Binding) $ do
             mapM_ (deleteUser . view userId) membs
-            Journal.teamDelete tid
+            Journal.journal $ Journal.JournaledTeamDelete tid
         Data.deleteTeam tid
   where
     pushEvents now membs c pp = do
@@ -194,7 +194,7 @@ uncheckedAddTeamMember (tid ::: req ::: _) = do
     nmem <- fromBody req invalidPayload
     mems <- Data.teamMembers tid
     rsp <- addTeamMemberInternal tid Nothing Nothing nmem mems
-    Journal.teamUpdate tid (nmem^.ntmNewTeamMember : mems)
+    Journal.journal $ Journal.JournaledTeamUpdate tid (nmem^.ntmNewTeamMember : mems)
     return rsp
 
 updateTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
@@ -211,7 +211,7 @@ updateTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
     Data.updateTeamMember tid user perm
     team <- Data.tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
     when (team^.teamBinding == Binding) $
-        Journal.teamUpdate tid (body^.ntmNewTeamMember : filter (\u -> u^.userId /= user) members)
+        Journal.journal $ Journal.JournaledTeamUpdate tid (body^.ntmNewTeamMember : filter (\u -> u^.userId /= user) members)
     now <- liftIO getCurrentTime
     let e = newEvent MemberUpdate tid now & eventData .~ Just (EdMemberUpdate user)
     let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) members)
@@ -227,7 +227,7 @@ deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
         body <- fromBody req invalidPayload
         ensureReAuthorised zusr (body^.tmdAuthPassword)
         deleteUser remove
-        Journal.teamUpdate tid (filter (\u -> u^.userId /= remove) mems)
+        Journal.journal $ Journal.JournaledTeamUpdate tid (filter (\u -> u^.userId /= remove) mems)
         pure (empty & setStatus status202)
     else do
         uncheckedRemoveTeamMember zusr (Just zcon) tid remove mems
