@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators     #-}
 
@@ -236,14 +237,18 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
     let edata = Conv.EdMembers (Conv.Members [remove])
     cc <- Data.teamConversations tid
     for_ cc $ \c -> do
-        Data.removeMember remove (c^.conversationId)
         unless (c^.managedConversation) $ do
             conv <- Data.conversation (c^.conversationId)
-            for_ conv $ \dc -> do
+            for_ conv $ pushEvent tmids edata now
+        Data.removeMember remove (c^.conversationId)
+  where
+    pushEvent tmids edata now dc =
+        if | remove `isMember` Data.convMembers dc -> do
                 let x = filter (\m -> not (Conv.memId m `Set.member` tmids)) (Data.convMembers dc)
                 let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
                 for_ (newPush zusr (ConvEvent y) (recipient <$> x)) $ \p ->
                     push1 $ p & pushConn .~ zcon
+           | otherwise -> return ()
 
 getTeamConversations :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamConversations (zusr::: tid ::: _) = do
